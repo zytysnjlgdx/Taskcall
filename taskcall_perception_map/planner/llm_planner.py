@@ -7,8 +7,13 @@ without changing the outer planner contract.
 
 from __future__ import annotations
 
+from taskcall_perception_map.llm import LLMMessage, LLMRequest
 from taskcall_perception_map.llm.base import LLMClient
-from taskcall_perception_map.planner.models import PlannerRequest, PlannerResult
+from taskcall_perception_map.planner.models import (
+    PlannerDebugInfo,
+    PlannerRequest,
+    PlannerResult,
+)
 from taskcall_perception_map.planner.parser import PlannerResponseParser
 from taskcall_perception_map.planner.prompt_builder import PlannerPromptBuilder
 from taskcall_perception_map.planner.validator import PlanValidator
@@ -37,8 +42,54 @@ class LLMPlanningAgent:
         self.max_tokens = max_tokens
 
     async def plan(self, request: PlannerRequest) -> PlannerResult:
-        """Plan generation is intentionally deferred to a later implementation."""
-        raise NotImplementedError(
-            "LLMPlanningAgent.plan() is not implemented yet. "
-            "This class currently defines the stable planner interface only."
+        """Build one plan graph from a normalized planner request."""
+        prompt_text = self.prompt_builder.build(request)
+        debug = PlannerDebugInfo(prompt_text=prompt_text)
+
+        provider_params = request.metadata.get("provider_params", {})
+        if not isinstance(provider_params, dict):
+            provider_params = {}
+
+        response = await self.llm_client.generate(
+            LLMRequest(
+                messages=[LLMMessage(role="user", content=prompt_text)],
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                response_format="json",
+                provider_params=provider_params,
+                metadata=dict(request.metadata),
+            )
         )
+        debug.raw_response = response.content
+        if response.finish_reason:
+            debug.notes.append(f"finish_reason={response.finish_reason}")
+
+        plan = self.response_parser.parse(response.content)
+        if not plan.question_text:
+            plan.question_text = request.question_text
+        plan.metadata.setdefault("planner_model", self.model)
+
+        validation = self.validator.validate(plan)
+        if not validation.ok:
+            issue_text = "; ".join(
+                _format_validation_issue(issue) for issue in validation.issues
+            )
+            debug.notes.append(f"validation_failed={issue_text}")
+            raise ValueError(f"Planner produced an invalid plan: {issue_text}")
+
+        if response.usage is not None:
+            debug.notes.append(
+                "usage="
+                f"input:{response.usage.input_tokens},"
+                f"output:{response.usage.output_tokens}"
+            )
+        return PlannerResult(plan=plan, debug=debug)
+
+
+def _format_validation_issue(issue: object) -> str:
+    message = getattr(issue, "message", str(issue))
+    node_id = getattr(issue, "node_id", None)
+    if isinstance(node_id, str) and node_id:
+        return f"{node_id}: {message}"
+    return str(message)
