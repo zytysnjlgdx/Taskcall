@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.Python
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Project outputs / logs
+outputs/
+runs/
+wandb/
+*.log
+
+# Model / checkpoint files
+*.pth
+*.pt
+*.ckpt
+
+# System
+.DS_Store
