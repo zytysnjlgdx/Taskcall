@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+
+outputs/
+intermediate/
+logs/
+*.log
+
+.venv/
+venv/
+.idea/
+.vscode/
+datasets/
