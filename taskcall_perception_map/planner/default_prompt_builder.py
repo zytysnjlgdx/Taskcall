@@ -5,8 +5,12 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from typing import Any
+
 from taskcall_perception_map.planner.models import PlannerRequest
 from taskcall_perception_map.planner.instructions import ZERO_SHOT_DECOMPOSITION_INSTRUCTION
+
+
+DEFAULT_PLANNER_INSTRUCTION = ZERO_SHOT_DECOMPOSITION_INSTRUCTION
 
 
 class DefaultPlannerPromptBuilder:
@@ -24,7 +28,12 @@ class DefaultPlannerPromptBuilder:
         self.include_retrieved_cases = include_retrieved_cases
 
     def build(self, request: PlannerRequest) -> str:
-        sections = [self.instruction]
+        instruction = self.instruction.strip()
+
+        if instruction.endswith("Problem:"):
+            instruction = instruction[: -len("Problem:")].rstrip()
+
+        sections = [instruction]
 
         if self.include_metadata:
             metadata_block = _compact_metadata(request.metadata)
@@ -38,7 +47,7 @@ class DefaultPlannerPromptBuilder:
                 + json.dumps(cases_payload, ensure_ascii=True, indent=2)
             )
 
-        sections.append("Task to decompose:\n" + request.question_text.strip())
+        sections.append("Problem:\n" + request.question_text.strip())
 
         return "\n\n".join(section for section in sections if section)
 

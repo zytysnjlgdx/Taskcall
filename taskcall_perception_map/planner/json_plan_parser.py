@@ -21,7 +21,11 @@ class JSONPlannerResponseParser:
         payload = parse_json_response(text)
         graph_payload = _unwrap_plan_payload(payload)
 
-        if "subproblems" in graph_payload or "final_answer_subproblem_id" in graph_payload:
+        if (
+            "subproblems" in graph_payload
+            or "final_answer_contract" in graph_payload
+            or "final_answer_subproblem_id" in graph_payload
+        ):
             return convert_task_topology_schema_to_plan_graph(graph_payload)
 
         question_text = _read_str(
@@ -96,7 +100,7 @@ class JSONPlannerResponseParser:
             source_node_id = _read_required_str(
                 item,
                 "source_node_id",
-                fallback=item.get("source"),
+                fallback=item.get("source_subproblem_id", item.get("source")),
             )
             field = _read_required_str(item, "field")
             required = item.get("required", True)

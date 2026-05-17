@@ -180,6 +180,33 @@ class StructuralPlanValidator:
                             )
                         )
 
+        # 校验图级 final_answer_node_id：新版 planner 会把它放在 metadata 里，
+        # 下游可以据此找到最终答案节点。
+        final_answer_node_id = plan.metadata.get("final_answer_node_id")
+        if final_answer_node_id is not None:
+            if not isinstance(final_answer_node_id, str) or not final_answer_node_id.strip():
+                issues.append(
+                    PlanValidationIssue(
+                        message="metadata.final_answer_node_id must be a non-empty string."
+                    )
+                )
+            elif final_answer_node_id not in node_ids:
+                issues.append(
+                    PlanValidationIssue(
+                        message=f"metadata.final_answer_node_id '{final_answer_node_id}' does not exist in plan nodes."
+                    )
+                )
+            else:
+                final_node = node_map[final_answer_node_id]
+                final_fields = {output.field for output in final_node.outputs}
+                if "final_answer" not in final_fields:
+                    issues.append(
+                        PlanValidationIssue(
+                            message="Final answer node must output field 'final_answer'.",
+                            node_id=final_answer_node_id,
+                        )
+                    )
+
         # 校验依赖图无环
         issues.extend(_detect_cycles(plan))
         return PlanValidationResult(ok=not issues, issues=issues)
